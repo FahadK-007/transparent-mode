@@ -40,7 +40,7 @@ Every annotation shows the value **after** that line executed — not before, no
 
 Every other Python visualizer makes you step through code line by line, or shows execution in a separate panel. Transparent Mode puts the values exactly where you're already looking — beside the code itself. It's the closest thing to being able to *see through* your program as it runs.
 
-Inspired by [Quokka.js](https://quokkajs.com) for JavaScript, but for Python, in the browser, with no install required.
+Built from scratch — the idea came from wanting to see what Python code was actually doing without hunting through print statements or stepping through a debugger.
 
 ## Tech stack
 
