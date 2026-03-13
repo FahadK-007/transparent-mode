@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Transparent Mode — Python Visualizer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 200;
+      overflow: visible;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .logo-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #7c6ff7;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: #2d2f50;
+      color: #9b97f7;
+      font-weight: 500;
+    }
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 7px 16px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-run {
+      background: #22c55e;
+      color: #fff;
+    }
+    .btn-run:hover { background: #16a34a; }
+    .btn-transparent {
+      background: #2d2f50;
+      color: #9b97f7;
+      border: 1px solid #4a4780;
+    }
+    .btn-transparent:hover { background: #3a3c60; }
+    .btn-transparent.active {
+      background: #7c6ff7;
+      color: #fff;
+      border-color: #7c6ff7;
+      box-shadow: 0 0 16px rgba(124,111,247,0.4);
+    }
+    .btn-clear {
+      background: transparent;
+      color: #64748b;
+      border: 1px solid #2d3148;
+    }
+    .btn-clear:hover { color: #94a3b8; border-color: #3d4468; }
+
+    /* ── Main layout ── */
+    main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Editor pane ── */
+    .editor-pane {
+      display: flex;
+      flex-direction: column;
+      width: 50%;
+      border-right: 1px solid #2d3148;
+      flex-shrink: 0;
+    }
+    .pane-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      padding: 10px 16px;
+      background: #161820;
+      border-bottom: 1px solid #2d3148;
+    }
+    .code-area {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+    .line-numbers {
+      padding: 16px 0;
+      background: #161820;
+      color: #3d4468;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      text-align: right;
+      user-select: none;
+      min-width: 44px;
+      padding-right: 12px;
+      border-right: 1px solid #2d3148;
+    }
+    #code-editor {
+      flex: 1;
+      background: #161820;
+      color: #e2e8f0;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      padding: 16px;
+      border: none;
+      outline: none;
+      resize: none;
+      tab-size: 4;
+      caret-color: #7c6ff7;
+    }
+    #code-editor::selection { background: #3a3c60; }
+
+    /* ── Output pane ── */
+    .output-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .output-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    /* ── Default output (console) ── */
+    .console-output {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #94a3b8;
+    }
+    .console-line { margin-bottom: 2px; }
+    .console-line.stdout { color: #22c55e; }
+    .console-line.stderr { color: #f87171; }
+    .console-line.info   { color: #64748b; font-style: italic; }
+
+    /* ── Transparent overlay ── */
+    .transparent-view { display: flex; flex-direction: column; gap: 12px; }
+
+    .step-card {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      overflow: hidden;
+      animation: fadeIn 0.25s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: #20233a;
+      border-bottom: 1px solid #2d3148;
+    }
+    .step-line-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 20px;
+      background: #2d2f50;
+      color: #9b97f7;
+    }
+    .step-code {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 12px;
+      color: #c4b5fd;
+      flex: 1;
+    }
+
+    .step-body { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+
+    .var-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .var-name {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      color: #7dd3fc;
+      min-width: 80px;
+    }
+    .var-arrow { color: #4a4780; }
+    .var-value {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      color: #86efac;
+      background: #0f2a1a;
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid #166534;
+    }
+    .var-value.number { color: #fbbf24; background: #2a1f0a; border-color: #78350f; }
+    .var-value.string { color: #f9a8d4; background: #2a0f1f; border-color: #831843; }
+    .var-value.list   { color: #86efac; background: #0f2a1a; border-color: #166534; }
+    .var-value.bool   { color: #c4b5fd; background: #1e1a40; border-color: #4a3f8a; }
+
+    .loop-iterations {
+      margin-top: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .iteration-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      background: #12141f;
+      border-radius: 6px;
+      border-left: 3px solid #4a4780;
+      font-size: 12px;
+    }
+    .iter-badge {
+      font-size: 10px;
+      font-weight: 600;
+      color: #9b97f7;
+      min-width: 20px;
+    }
+    .iter-vars { display: flex; gap: 12px; flex-wrap: wrap; }
+    .iter-var { font-family: 'Cascadia Code', 'Fira Code', monospace; }
+    .iter-var .k { color: #7dd3fc; }
+    .iter-var .eq { color: #4a4780; margin: 0 3px; }
+    .iter-var .v { color: #fbbf24; }
+
+    .condition-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .condition-row.true  { background: #0f2a1a; border: 1px solid #166534; }
+    .condition-row.false { background: #2a0f0f; border: 1px solid #7f1d1d; }
+    .cond-icon { font-size: 13px; }
+    .cond-text { font-family: 'Cascadia Code', 'Fira Code', monospace; color: #94a3b8; }
+    .cond-result { font-weight: 600; margin-left: auto; }
+    .cond-result.true  { color: #22c55e; }
+    .cond-result.false { color: #f87171; }
+
+    /* ── Status bar ── */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 6px 16px;
+      background: #161820;
+      border-top: 1px solid #2d3148;
+      font-size: 11px;
+      color: #4a5568;
+      flex-shrink: 0;
+    }
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #4a5568;
+    }
+    .status-dot.running { background: #fbbf24; animation: pulse 1s infinite; }
+    .status-dot.success { background: #22c55e; }
+    .status-dot.error   { background: #f87171; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 10px;
+      color: #3d4468;
+      font-size: 13px;
+    }
+    .empty-icon { font-size: 32px; opacity: 0.4; }
+
+
+    /* Inline overlay */
+    .editor-wrapper {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+    }
+    #code-editor {
+      position: relative;
+      z-index: 1;
+      background: transparent;
+    }
+    #code-overlay {
+      position: absolute;
+      top: 0; left: 44px;
+      right: 0; bottom: 0;
+      pointer-events: none;
+      z-index: 2;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      padding: 16px 0 16px 16px;
+      overflow: hidden;
+      white-space: pre;
+    }
+    .overlay-line {
+      display: block;
+      height: calc(13px * 1.7);
+      white-space: nowrap;
+    }
+    .overlay-ann {
+      display: inline;
+      font-style: italic;
+      font-size: 12px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      margin-left: 8px;
+    }
+    .ann-value  { color: #7c6ff7; }
+    .ann-loop   { color: #EF9F27; }
+    .ann-true   { color: #22c55e; }
+    .ann-false  { color: #f87171; }
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 3px; }
+
+
+    /* ── Loading overlay ── */
+    #loading-banner {
+      display: none;
+      position: absolute;
+      bottom: 36px; left: 50%; transform: translateX(-50%);
+      background: #2d2f50;
+      color: #9b97f7;
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 10;
+      border: 1px solid #4a4780;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    Transparent Mode
+    <span class="badge">alpha</span>
+  </div>
+  <div class="header-actions">
+    <select onchange="loadExample(this.value); this.selectedIndex = 0;" style="background:#1e2040;color:#9b97f7;border:1px solid #3a3c60;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;outline:none;">
+      <option value="" disabled selected>⊞ Examples</option>
+      <option value="0">Average calculator</option>
+      <option value="1">Fibonacci sequence</option>
+      <option value="2">FizzBuzz</option>
+      <option value="3">Bubble sort</option>
+      <option value="4">Password checker</option>
+    </select>
+    <button class="btn btn-clear" onclick="clearAll()">Clear</button>
+    <button class="btn btn-transparent" id="btn-transparent" onclick="toggleTransparent()">
+      ◈ Transparent
+    </button>
+    <button class="btn btn-run" onclick="runCode()">▶ Run</button>
+  </div>
+</header>
+
+<!-- Main -->
+<main>
+
+  <!-- Editor pane -->
+  <div class="editor-pane" id="editor-pane">
+    <div class="pane-label">Python editor</div>
+    <div class="code-area">
+      <div class="line-numbers" id="line-numbers">1</div>
+      <div class="editor-wrapper">
+      <div id="code-overlay"></div>
+      <textarea id="code-editor" spellcheck="false" autocomplete="off" autocorrect="off"
+        placeholder="# Write your Python code here..."
+        oninput="updateLineNumbers()"
+        onkeydown="handleTab(event)"
+      ># Example — try editing me!
+numbers = [4, 7, 2, 9, 1]
+total = 0
+
+for num in numbers:
+    total = total + num
+
+average = total / len(numbers)
+is_above_five = average > 5
+
+print("Total:", total)
+print("Average:", average)
+print("Above 5?", is_above_five)</textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Output pane -->
+  <div class="output-pane" id="output-pane">
+    <div class="pane-label" id="output-label">Output</div>
+    <div class="output-body" id="output-body">
+      <div class="empty-state">
+        <div class="empty-icon">▶</div>
+        <div>Press Run to execute your code</div>
+        <div style="font-size:11px; margin-top:2px; color:#2d3148;">or toggle Transparent for live values</div>
+      </div>
+    </div>
+    <div class="status-bar">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Ready</span>
+    </div>
+  </div>
+
+</main>
+
+<div id="loading-banner">Loading Python engine...</div>
+
+<!-- Pyodide -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+<script>
+let pyodide = null;
+let pyodideReady = false;
+let transparentMode = false;
+
+async function initPyodide() {
+  document.getElementById('loading-banner').style.display = 'block';
+  setStatus('loading', 'Loading Python engine...');
+  try {
+    pyodide = await loadPyodide();
+    pyodideReady = true;
+    document.getElementById('loading-banner').style.display = 'none';
+    setStatus('success', 'Python ready');
+  } catch(e) {
+    setStatus('error', 'Failed: ' + e);
+  }
+}
+initPyodide();
+
+function updateLineNumbers() {
+  const count = document.getElementById('code-editor').value.split('\n').length;
+  document.getElementById('line-numbers').innerHTML =
+    Array.from({length:count},function(_,i){return i+1;}).join('<br>');
+}
+updateLineNumbers();
+
+function handleTab(e) {
+  if (e.key !== 'Tab') return;
+  e.preventDefault();
+  const ta = e.target, s = ta.selectionStart;
+  ta.value = ta.value.substring(0,s) + '    ' + ta.value.substring(ta.selectionEnd);
+  ta.selectionStart = ta.selectionEnd = s + 4;
+  updateLineNumbers();
+  if (transparentMode) clearOverlay();
+}
+
+function setStatus(type, text) {
+  const dot = document.getElementById('status-dot');
+  dot.className = 'status-dot' +
+    (type==='loading'?' running':type==='success'?' success':type==='error'?' error':'');
+  document.getElementById('status-text').textContent = text;
+}
+
+function clearOverlay() {
+  const o = document.getElementById('code-overlay');
+  if (o) o.innerHTML = '';
+}
+
+function clearAll() {
+  clearOverlay();
+  transparentMode = false;
+  document.getElementById('btn-transparent').classList.remove('active');
+  document.getElementById('editor-pane').style.width = '50%';
+  document.getElementById('output-pane').style.display = 'flex';
+  document.getElementById('output-body').innerHTML =
+    '<div class="empty-state"><div class="empty-icon">&#9654;</div><div>Press Run to execute your code</div></div>';
+  setStatus('', 'Ready');
+}
+
+function toggleTransparent() {
+  transparentMode = !transparentMode;
+  document.getElementById('btn-transparent').classList.toggle('active', transparentMode);
+  if (transparentMode) {
+    document.getElementById('editor-pane').style.width = '100%';
+    document.getElementById('output-pane').style.display = 'none';
+    runTransparentMode();
+  } else {
+    clearAll();
+  }
+}
+
+async function runTransparentMode() {
+  if (!pyodideReady) { setStatus('error', 'Python still loading...'); return; }
+  const code = document.getElementById('code-editor').value.trim();
+  if (!code) return;
+  setStatus('loading', 'Running...');
+  try { await runTransparent(code); } catch(e) { showError(String(e)); }
+}
+
+async function runCode() {
+  // Run button always runs normally, exiting transparent mode if needed
+  if (transparentMode) {
+    transparentMode = false;
+    document.getElementById('btn-transparent').classList.remove('active');
+    document.getElementById('editor-pane').style.width = '50%';
+    document.getElementById('output-pane').style.display = 'flex';
+    clearOverlay();
+  }
+  if (!pyodideReady) { setStatus('error', 'Python still loading...'); return; }
+  const code = document.getElementById('code-editor').value.trim();
+  if (!code) return;
+  setStatus('loading', 'Running...');
+  try { await runNormal(code); } catch(e) { showError(String(e)); }
+}
+
+async function runNormal(code) {
+  const body = document.getElementById('output-body');
+  body.innerHTML = '';
+  const lines = [];
+  pyodide.setStdout({ batched: function(s){ lines.push({t:'stdout',v:s}); }});
+  pyodide.setStderr({ batched: function(s){ lines.push({t:'stderr',v:s}); }});
+  try {
+    await pyodide.runPythonAsync("import sys; sys.settrace(None)\n" + code);
+    const div = document.createElement('div');
+    div.className = 'console-output';
+    div.innerHTML = lines.length
+      ? lines.map(function(l){ return '<div class="console-line '+l.t+'">'+escHtml(l.v)+'</div>'; }).join('')
+      : '<div class="console-line info">// No output</div>';
+    body.appendChild(div);
+    setStatus('success', 'Done');
+  } catch(err) { showError(String(err)); }
+}
+
+async function runTransparent(code) {
+  clearOverlay();
+
+  const printLines = [];
+  pyodide.setStdout({ batched: function(s){ printLines.push(s); }});
+  pyodide.setStderr({ batched: function(s){ printLines.push('ERR: '+s); }});
+
+  pyodide.globals.set('_user_src', code);
+
+  // Single runPythonAsync call — settrace reset at start, everything scoped locally.
+  // No sync runPython calls anywhere to avoid error code 5.
+  const tracerCode = [
+    'import sys, types',
+    '# Always clear any previous trace first',
+    'sys.settrace(None)',
+    '',
+    'def _run_traced(src):',
+    '    tlog = []',
+    '    prev_line = [None]',
+    '    def snap(frame, event, arg):',
+    '        if event == "line":',
+    '            if prev_line[0] is not None:',
+    '                s = {}',
+    '                for k, v in frame.f_locals.items():',
+    '                    if k.startswith("_"): continue',
+    '                    if isinstance(v, types.ModuleType): continue',
+    '                    try: s[k] = repr(v)',
+    '                    except: s[k] = "?"',
+    '                tlog.append([prev_line[0], s])',
+    '            prev_line[0] = frame.f_lineno',
+    '        return snap',
+    '    sys.settrace(snap)',
+    '    try:',
+    '        exec(compile(src, "<user>", "exec"), {})',
+    '    finally:',
+    '        sys.settrace(None)',
+    '        if prev_line[0] is not None:',
+    '            tlog.append([prev_line[0], {}])',
+    '    return tlog',
+    '',
+    '_RESULT = _run_traced(_user_src)'
+  ].join('\n');
+
+  try {
+    await pyodide.runPythonAsync(tracerCode);
+  } catch(err) { showError(String(err)); return; }
+
+  let traceLog = [];
+  try {
+    const pyResult = pyodide.globals.get('_RESULT');
+    const raw = pyResult.toJs();
+    pyResult.destroy();
+    raw.forEach(function(entry) {
+      const vars = {};
+      const vm = entry[1];
+      if (vm instanceof Map) vm.forEach(function(v,k){ vars[k]=v; });
+      traceLog.push({ line: entry[0], vars: vars });
+    });
+  } catch(e) { showError('Bridge error: '+String(e)); return; }
+
+  renderInlineOverlay(code.split('\n'), traceLog, printLines);
+  setStatus('success', 'Transparent — '+traceLog.length+' steps traced');
+}
+
+function renderInlineOverlay(userLines, traceLog, printOutput) {
+  const overlay = document.getElementById('code-overlay');
+  const annotations = buildAnnotations(userLines, traceLog);
+  let html = '';
+  userLines.forEach(function(line, i) {
+    const ann = annotations[i + 1];
+    if (ann) {
+      const w = line.length * 7.8 + 20;
+      html += '<div class="overlay-line">' +
+        '<span style="display:inline-block;min-width:'+w+'px"></span>' +
+        '<span class="overlay-ann '+ann.type+'">'+escHtml(ann.text)+'</span>' +
+        '</div>';
+    } else {
+      html += '<div class="overlay-line"></div>';
+    }
+  });
+  overlay.innerHTML = html;
+}
+
+function buildAnnotations(userLines, traceLog) {
+  const anns = {};
+
+  const loopLines = new Set();
+  userLines.forEach(function(l, i) {
+    if (/^\s*(for|while)\s/.test(l)) loopLines.add(i + 1);
+  });
+
+  function getLoopVar(lineText) {
+    var m = lineText.match(/^\s*for\s+(\w+)\s+in\s/);
+    return m ? m[1] : null;
+  }
+
+  const loopIters = {};
+  traceLog.forEach(function(e) {
+    if (!loopLines.has(e.line)) return;
+    if (!loopIters[e.line]) loopIters[e.line] = [];
+    loopIters[e.line].push(Object.assign({}, e.vars));
+  });
+  Object.keys(loopIters).forEach(function(lineNum) {
+    const iters = loopIters[lineNum];
+    const loopVar = getLoopVar(userLines[lineNum - 1]);
+    if (loopVar && iters.length >= 2) {
+      const last = iters[iters.length - 1][loopVar];
+      const prev = iters[iters.length - 2][loopVar];
+      if (last === prev) iters.pop();
+    }
+  });
+
+  const shown = new Set();
+  const condFirst = {};  // first-visit result per condition line
+
+  traceLog.forEach(function(entry, idx) {
+    const line = entry.line;
+    const lineIdx = line - 1;
+    if (lineIdx < 0 || lineIdx >= userLines.length) return;
+    const lineText = userLines[lineIdx].trim();
+    if (!lineText || lineText.charAt(0) === '#') return;
+
+    const isLoopBody = (function() {
+      const indent = userLines[lineIdx].match(/^(\s*)/)[1].length;
+      for (var ln = lineIdx - 1; ln >= 0; ln--) {
+        var lt = userLines[ln].trim();
+        if (!lt) continue;
+        var ind = userLines[ln].match(/^(\s*)/)[1].length;
+        if (ind < indent && /^\s*(for|while)\s/.test(userLines[ln])) return true;
+        if (ind < indent) return false;
+      }
+      return false;
+    })();
+    if (!isLoopBody && shown.has(line)) return;
+    shown.add(line);
+
+    const afterVars = entry.vars;
+    const prevEntry = idx > 0 ? traceLog[idx - 1] : null;
+    const beforeVars = prevEntry ? prevEntry.vars : {};
+
+    if (loopLines.has(line)) {
+      const iters = loopIters[line] || [];
+      const loopVar = getLoopVar(userLines[lineIdx]);
+      let text = iters.length + ' iteration' + (iters.length !== 1 ? 's' : '');
+      if (loopVar) {
+        const vals = iters.map(function(snap) { return snap[loopVar]; })
+          .filter(function(v){ return v !== undefined; });
+        if (vals.length) text += '   ' + vals.join(' \u2192 ');
+      }
+      anns[line] = { text: '// ' + text, type: 'ann-loop' };
+      return;
+    }
+
+    if (/^\s*(if|elif)\s/.test(userLines[lineIdx])) {
+      if (!condFirst[line]) {
+        const next = traceLog[idx + 1];
+        // "taken" = next line is the body (indented further than the if)
+        // "not taken" = next line is at same or lower indent (elif/else/after block)
+        var condIndent = userLines[lineIdx].match(/^(\s*)/)[1].length;
+        var taken = false;
+        if (next) {
+          var nextLineIdx = next.line - 1;
+          if (nextLineIdx >= 0 && nextLineIdx < userLines.length) {
+            var nextIndent = userLines[nextLineIdx].match(/^(\s*)/)[1].length;
+            taken = nextIndent > condIndent;
+          }
+        }
+        // Read loop var from beforeVars (state when this line was about to run)
+        const loopCtx = (function() {
+          var indent = userLines[lineIdx].match(/^(\s*)/)[1].length;
+          for (var ln = lineIdx - 1; ln >= 0; ln--) {
+            var lt = userLines[ln].trim();
+            if (!lt) continue;
+            var ind = userLines[ln].match(/^(\s*)/)[1].length;
+            if (ind < indent && /^\s*for\s+(\w+)\s+in\s/.test(userLines[ln])) {
+              var lv = userLines[ln].match(/^\s*for\s+(\w+)\s+in\s/)[1];
+              // Use beforeVars — the state before this line ran
+              return beforeVars[lv] !== undefined ? lv + '=' + beforeVars[lv] : null;
+            }
+            if (ind < indent) break;
+          }
+          return null;
+        })();
+        var label = taken ? 'TRUE \u2713' : 'FALSE \u2717';
+        if (loopCtx) label += '  (' + loopCtx + ')';
+        condFirst[line] = { text: '// ' + label, type: taken ? 'ann-true' : 'ann-false' };
+      }
+      anns[line] = condFirst[line];
+      return;
+    }
+
+    if (/^\s*print\s*\(/.test(userLines[lineIdx])) return;
+
+    const changed = {};
+    Object.keys(afterVars).forEach(function(k) {
+      if (beforeVars[k] !== afterVars[k] || !(k in beforeVars)) changed[k] = afterVars[k];
+    });
+    if (Object.keys(changed).length === 0) return;
+
+    var lhsMatch = lineText.match(/^(\w+)\s*(?:\+|-|\*|\/|\/\/|%|\*\*)?=/);
+    var lhsVar = lhsMatch ? lhsMatch[1] : null;
+    var parts;
+    if (lhsVar && lhsVar in changed) {
+      parts = [lhsVar + ' = ' + changed[lhsVar]];
+    } else {
+      parts = Object.keys(changed).map(function(k) { return k + ' = ' + changed[k]; });
+    }
+    anns[line] = { text: '// ' + parts.join(',  '), type: 'ann-value' };
+  });
+
+  return anns;
+}
+
+function showError(msg) {
+  if (!transparentMode) {
+    document.getElementById('output-body').innerHTML =
+      '<div class="console-output"><div class="console-line stderr">'+escHtml(msg)+'</div></div>';
+  }
+  setStatus('error', 'Error');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const EXAMPLES = [
+  {
+    name: 'Average calculator',
+    code: `# Average calculator
+numbers = [4, 7, 2, 9, 1]
+total = 0
+
+for num in numbers:
+    total = total + num
+
+average = total / len(numbers)
+is_above_five = average > 5
+
+print("Total:", total)
+print("Average:", average)
+print("Above 5?", is_above_five)`
+  },
+  {
+    name: 'Fibonacci sequence',
+    code: `# Fibonacci sequence
+a = 0
+b = 1
+count = 0
+limit = 8
+
+while count < limit:
+    next = a + b
+    a = b
+    b = next
+    count = count + 1
+
+print("Fibonacci:", a)`
+  },
+  {
+    name: 'FizzBuzz',
+    code: `# FizzBuzz
+numbers = [3, 5, 9, 10, 15, 7]
+results = []
+
+for n in numbers:
+    if n % 15 == 0:
+        result = "FizzBuzz"
+    elif n % 3 == 0:
+        result = "Fizz"
+    elif n % 5 == 0:
+        result = "Buzz"
+    else:
+        result = n
+    results.append(result)
+
+print(results)`
+  },
+  {
+    name: 'Bubble sort',
+    code: `# Bubble sort
+items = [5, 3, 8, 1, 9, 2]
+n = len(items)
+swaps = 0
+
+for i in range(n - 1):
+    for j in range(n - i - 1):
+        if items[j] > items[j + 1]:
+            temp = items[j]
+            items[j] = items[j + 1]
+            items[j + 1] = temp
+            swaps = swaps + 1
+
+print("Sorted:", items)
+print("Swaps:", swaps)`
+  },
+  {
+    name: 'Password checker',
+    code: `# Password checker
+password = "Hello123"
+length = len(password)
+has_upper = any(c.isupper() for c in password)
+has_digit = any(c.isdigit() for c in password)
+is_long = length >= 8
+
+if is_long and has_upper and has_digit:
+    strength = "Strong"
+elif is_long and (has_upper or has_digit):
+    strength = "Medium"
+else:
+    strength = "Weak"
+
+print("Password strength:", strength)`
+  }
+];
+
+function loadExample(idx) {
+  const editor = document.getElementById('code-editor');
+  editor.value = EXAMPLES[idx].code;
+  updateLineNumbers();
+  clearAll();
+}
+
+</script>
+</body>
+</html>
